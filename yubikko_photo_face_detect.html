@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>ゆびっこ写真</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; background: white; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+        .container { width: 100%; height: 100%; display: flex; flex-direction: column; }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 16px;
+            text-align: center;
+            padding-top: max(12px, env(safe-area-inset-top));
+        }
+
+        .header h1 { font-size: 18px; font-weight: 600; }
+        .header p { font-size: 11px; opacity: 0.8; margin: 4px 0 0 0; }
+
+        .content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px; }
+
+        .video-wrapper {
+            width: 100%;
+            aspect-ratio: 1;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            display: block;
+            transform: scaleX(-1);
+            object-fit: cover;
+        }
+
+        .overlay-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .char-selector {
+            background: #f5f5f5;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .char-label { font-size: 12px; font-weight: 600; margin-bottom: 8px; display: block; }
+
+        .char-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+        }
+
+        .char-btn {
+            aspect-ratio: 1;
+            padding: 0;
+            border: 2px solid #ddd;
+            background: white;
+            border-radius: 8px;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .char-btn.active { border: 2px solid #667eea; background: #e8eeff; }
+        .char-btn:active { transform: scale(0.95); }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        button {
+            padding: 12px;
+            border: none;
+            background: #667eea;
+            color: white;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        button:active { transform: scale(0.98); }
+        button.secondary { background: #f0f0f0; color: #333; }
+
+        .status { font-size: 12px; padding: 8px; background: #f5f5f5; border-radius: 8px; text-align: center; color: #999; }
+        .status.ok { background: #e8f5e9; color: #2e7d32; }
+        .status.loading { color: #667eea; font-weight: 600; }
+
+        input[type="file"] { display: none; }
+
+        .section { background: #f5f5f5; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+        .section-label { font-size: 12px; font-weight: 600; margin-bottom: 8px; display: block; }
+
+        .deco-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+        }
+
+        .deco-btn {
+            aspect-ratio: 1;
+            border: 2px solid #ddd;
+            background: white;
+            border-radius: 8px;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .deco-btn.active { border: 2px solid #667eea; background: #667eea; }
+        .deco-btn:active { transform: scale(0.95); }
+
+        .slider-group { margin-bottom: 12px; }
+        .slider-label { font-size: 12px; color: #666; margin-bottom: 6px; display: block; font-weight: 500; }
+        input[type="range"] { width: 100%; accent-color: #667eea; }
+
+        .footer {
+            padding: 12px;
+            padding-bottom: max(12px, env(safe-area-inset-bottom));
+            text-align: center;
+            font-size: 11px;
+            color: #999;
+            border-top: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎥 ゆびっこ写真</h1>
+            <p>キャラで写真をデコレーション✨</p>
+        </div>
+
+        <div class="content">
+            <!-- ビデオ表示エリア -->
+            <div class="video-wrapper">
+                <video id="video" playsinline></video>
+                <canvas class="overlay-canvas" id="overlay"></canvas>
+            </div>
+
+            <!-- キャラ選択 -->
+            <div class="char-selector">
+                <label class="char-label">🎪 キャラを選ぶ</label>
+                <div class="char-grid" id="charGrid"></div>
+            </div>
+
+            <!-- 操作ボタン -->
+            <div class="controls">
+                <button onclick="capturePhoto()">📸 撮影</button>
+                <button class="secondary" onclick="document.getElementById('fileInput').click()">📁 読込</button>
+                <button class="secondary" onclick="resetApp()">🔄 リセット</button>
+                <button class="secondary" id="downloadBtn" style="display:none" onclick="downloadPhoto()">💾 保存</button>
+            </div>
+
+            <!-- デコレーション -->
+            <div class="section">
+                <label class="section-label">✨ フレーム</label>
+                <div class="deco-grid" id="frameGrid"></div>
+            </div>
+
+            <div class="section">
+                <label class="section-label">サイズ調整</label>
+                <div class="slider-group">
+                    <input type="range" id="sizeSlider" min="0.5" max="2" step="0.1" value="1" onchange="redraw()">
+                </div>
+            </div>
+
+            <div class="status" id="status">顔を認識中...</div>
+        </div>
+
+        <div class="footer">
+            ホーム画面に追加してアプリとして使用できます
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*" onchange="loadPhoto(event)">
+
+    <script>
+        const characters = [
+            { emoji: '😊', url: 'https://kantarokotasan-a11y.github.io/yubikko-game/body-normal.png' },
+            { emoji: '🤏', url: 'https://kantarokotasan-a11y.github.io/yubikko-game/body-thin.png' },
+            { emoji: '🍔', url: 'https://kantarokotasan-a11y.github.io/yubikko-game/body-fat.png' },
+            { emoji: '💪', url: 'https://kantarokotasan-a11y.github.io/yubikko-game/body-macho.png' },
+            { emoji: '🤒', url: 'https://kantarokotasan-a11y.github.io/yubikko-game/body-sick.png' },
+        ];
+
+        const frames = [
+            { emoji: '⭕', id: 'none' },
+            { emoji: '🌈', id: 'rainbow' },
+            { emoji: '💖', id: 'heart' },
+            { emoji: '⭐', id: 'star' },
+            { emoji: '🌸', id: 'flower' },
+            { emoji: '✨', id: 'sparkle' },
+        ];
+
+        let video, overlay, ctx;
+        let selectedCharImage = null;
+        let currentFrame = 'none';
+        let charScale = 1;
+        let capturedCanvas = null;
+        let isCamera = true;
+        let detectedFace = null;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            video = document.getElementById('video');
+            overlay = document.getElementById('overlay');
+            ctx = overlay.getContext('2d');
+
+            // キャラグリッド作成
+            const charGrid = document.getElementById('charGrid');
+            characters.forEach((char, i) => {
+                const btn = document.createElement('button');
+                btn.className = 'char-btn' + (i === 0 ? ' active' : '');
+                btn.innerHTML = char.emoji;
+                btn.onclick = () => selectChar(char, btn);
+                charGrid.appendChild(btn);
+            });
+
+            // フレームグリッド作成
+            const frameGrid = document.getElementById('frameGrid');
+            frames.forEach(frame => {
+                const btn = document.createElement('button');
+                btn.className = 'deco-btn' + (frame.id === 'none' ? ' active' : '');
+                btn.innerHTML = frame.emoji;
+                btn.onclick = () => setFrame(frame.id, btn);
+                frameGrid.appendChild(btn);
+            });
+
+            // 最初のキャラ選択
+            selectChar(characters[0], charGrid.children[0]);
+
+            // カメラ起動
+            startCamera();
+        });
+
+        function selectChar(char, btn) {
+            document.querySelectorAll('.char-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            selectedCharImage = new Image();
+            selectedCharImage.crossOrigin = 'anonymous';
+            selectedCharImage.onload = () => {
+                updateStatus('キャラ読込OK ✓', true);
+                redraw();
+            };
+            selectedCharImage.onerror = () => {
+                updateStatus('画像読込失敗');
+            };
+            selectedCharImage.src = char.url;
+        }
+
+        function setFrame(frameId, btn) {
+            document.querySelectorAll('.deco-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentFrame = frameId;
+            redraw();
+        }
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+                });
+                video.srcObject = stream;
+                video.play();
+
+                video.onloadedmetadata = () => {
+                    overlay.width = video.videoWidth;
+                    overlay.height = video.videoHeight;
+                    updateStatus('カメラ起動！顔を認識中...', false);
+                    detectFacesLoop();
+                };
+            } catch (e) {
+                updateStatus('カメラアクセス拒否');
+                console.error(e);
+            }
+        }
+
+        // 軽量な顔認識アルゴリズム
+        function detectFaces(imageData) {
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+
+            // 肌色の検出範囲
+            const faces = [];
+            let maxSkinArea = 0;
+            let bestRegion = null;
+
+            // グリッドで肌色領域を探す
+            const gridSize = 20;
+            for (let gx = 0; gx < width; gx += gridSize) {
+                for (let gy = 0; gy < height; gy += gridSize) {
+                    let skinCount = 0;
+                    for (let x = gx; x < Math.min(gx + gridSize, width); x++) {
+                        for (let y = gy; y < Math.min(gy + gridSize, height); y++) {
+                            const idx = (y * width + x) * 4;
+                            const r = data[idx];
+                            const g = data[idx + 1];
+                            const b = data[idx + 2];
+
+                            // 肌色判定（RGB値の範囲）
+                            if (r > 95 && g > 40 && b > 20 &&
+                                r > g && r > b &&
+                                Math.abs(r - g) > 15) {
+                                skinCount++;
+                            }
+                        }
+                    }
+
+                    if (skinCount > gridSize * gridSize * 0.3) {
+                        if (skinCount > maxSkinArea) {
+                            maxSkinArea = skinCount;
+                            bestRegion = { x: gx, y: gy };
+                        }
+                    }
+                }
+            }
+
+            if (bestRegion && maxSkinArea > 100) {
+                // 顔の推定領域を返す
+                const faceSize = Math.min(width, height) * 0.3;
+                return [{
+                    x: bestRegion.x,
+                    y: Math.max(0, bestRegion.y - faceSize * 0.3),
+                    width: faceSize,
+                    height: faceSize
+                }];
+            }
+
+            return [];
+        }
+
+        function detectFacesLoop() {
+            if (!isCamera) return;
+
+            // ビデオから画像データを取得して顔検出
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(video, 0, 0);
+
+            const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            const faces = detectFaces(imageData);
+
+            if (faces.length > 0) {
+                detectedFace = faces[0];
+                updateStatus('顔検出！✓', true);
+            } else {
+                detectedFace = null;
+                updateStatus('顔を探中...', false);
+            }
+
+            redraw();
+            requestAnimationFrame(detectFacesLoop);
+        }
+
+        function redraw() {
+            if (!selectedCharImage || !selectedCharImage.complete) return;
+
+            ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+            let charX, charY, charSize;
+
+            if (detectedFace && isCamera) {
+                // 検出された顔の位置にキャラを配置
+                charX = detectedFace.x + detectedFace.width / 2;
+                charY = detectedFace.y + detectedFace.width / 2;
+                charSize = detectedFace.width * parseFloat(document.getElementById('sizeSlider').value);
+            } else {
+                // デフォルト（中央）
+                charX = overlay.width / 2;
+                charY = overlay.height / 2;
+                charSize = Math.min(overlay.width, overlay.height) * 0.4 * parseFloat(document.getElementById('sizeSlider').value);
+            }
+
+            // キャラ描画
+            ctx.save();
+            ctx.globalAlpha = 0.85;
+            ctx.drawImage(
+                selectedCharImage,
+                charX - charSize / 2,
+                charY - charSize / 2,
+                charSize,
+                charSize
+            );
+            ctx.restore();
+
+            // フレーム描画
+            if (currentFrame === 'heart') {
+                drawHearts(ctx, charX, charY, charSize);
+            } else if (currentFrame === 'star') {
+                drawStars(ctx, charX, charY, charSize);
+            } else if (currentFrame === 'sparkle') {
+                drawSparkles(ctx, charX, charY, charSize);
+            } else if (currentFrame === 'rainbow') {
+                drawRainbow(ctx, charX, charY, charSize);
+            }
+        }
+
+        function drawHearts(ctx, x, y, size) {
+            ctx.fillStyle = '#FF1744';
+            const positions = [[x, y - size * 0.7], [x + size * 0.7, y], [x, y + size * 0.7], [x - size * 0.7, y]];
+            positions.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p[0], p[1], 8, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawStars(ctx, x, y, size) {
+            ctx.fillStyle = '#FFD700';
+            const positions = [[x, y - size * 0.7], [x + size * 0.7, y], [x, y + size * 0.7], [x - size * 0.7, y]];
+            positions.forEach(p => {
+                ctx.fillRect(p[0] - 6, p[1] - 6, 12, 12);
+            });
+        }
+
+        function drawSparkles(ctx, x, y, size) {
+            ctx.fillStyle = '#00BCD4';
+            const count = 8;
+            for (let i = 0; i < count; i++) {
+                const angle = (i / count) * Math.PI * 2;
+                const px = x + Math.cos(angle) * (size * 0.6 + 20);
+                const py = y + Math.sin(angle) * (size * 0.6 + 20);
+                ctx.fillRect(px - 3, py - 3, 6, 6);
+            }
+        }
+
+        function drawRainbow(ctx, x, y, size) {
+            ctx.strokeStyle = '#FF1744';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, size * 0.5 + 10, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        function capturePhoto() {
+            if (!video.srcObject) {
+                updateStatus('カメラが起動していません');
+                return;
+            }
+
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const c = canvas.getContext('2d');
+
+                c.drawImage(video, 0, 0);
+                c.drawImage(overlay, 0, 0);
+
+                capturedCanvas = canvas;
+                isCamera = false;
+
+                video.pause();
+                video.style.display = 'none';
+                overlay.style.display = 'none';
+
+                const wrapper = document.querySelector('.video-wrapper');
+                wrapper.innerHTML = '';
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                canvas.style.display = 'block';
+                wrapper.appendChild(canvas);
+
+                document.getElementById('downloadBtn').style.display = '';
+                updateStatus('撮影完了！ ✓', true);
+            } catch (e) {
+                updateStatus('撮影失敗');
+                console.error(e);
+            }
+        }
+
+        function loadPhoto(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const c = canvas.getContext('2d');
+                    c.drawImage(img, 0, 0);
+
+                    // 顔検出
+                    const imageData = c.getImageData(0, 0, canvas.width, canvas.height);
+                    const faces = detectFaces(imageData);
+                    
+                    if (faces.length > 0) {
+                        detectedFace = faces[0];
+                    }
+
+                    // キャラを描画
+                    if (selectedCharImage && selectedCharImage.complete) {
+                        let charX, charY, charSize;
+                        
+                        if (detectedFace) {
+                            charX = detectedFace.x + detectedFace.width / 2;
+                            charY = detectedFace.y + detectedFace.width / 2;
+                            charSize = detectedFace.width;
+                        } else {
+                            charX = canvas.width / 2;
+                            charY = canvas.height / 2;
+                            charSize = Math.min(canvas.width, canvas.height) * 0.4;
+                        }
+
+                        c.globalAlpha = 0.85;
+                        c.drawImage(
+                            selectedCharImage,
+                            charX - charSize / 2,
+                            charY - charSize / 2,
+                            charSize,
+                            charSize
+                        );
+                    }
+
+                    capturedCanvas = canvas;
+                    isCamera = false;
+
+                    const wrapper = document.querySelector('.video-wrapper');
+                    wrapper.innerHTML = '';
+                    canvas.style.width = '100%';
+                    canvas.style.height = '100%';
+                    wrapper.appendChild(canvas);
+
+                    document.getElementById('downloadBtn').style.display = '';
+                    updateStatus('写真読込完了 ✓', true);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function downloadPhoto() {
+            if (!capturedCanvas) return;
+            const link = document.createElement('a');
+            link.href = capturedCanvas.toDataURL('image/png');
+            link.download = `yubikko_${Date.now()}.png`;
+            link.click();
+            updateStatus('保存しました！', true);
+        }
+
+        function resetApp() {
+            isCamera = true;
+            detectedFace = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('downloadBtn').style.display = 'none';
+
+            const wrapper = document.querySelector('.video-wrapper');
+            wrapper.innerHTML = '<video id="video" playsinline></video><canvas class="overlay-canvas" id="overlay"></canvas>';
+
+            video = document.getElementById('video');
+            overlay = document.getElementById('overlay');
+            ctx = overlay.getContext('2d');
+
+            startCamera();
+            updateStatus('リセット完了', false);
+        }
+
+        function updateStatus(msg, ok = false) {
+            const el = document.getElementById('status');
+            el.textContent = msg;
+            el.classList.remove('ok', 'loading');
+            if (ok) el.classList.add('ok');
+            else el.classList.add('loading');
+        }
+    </script>
+</body>
+</html>
